@@ -1,0 +1,36 @@
+# 필요한 패키지 설치 및 로드
+install.packages("readxl")   # 설치는 한 번만
+library(readxl)
+library(dplyr)
+library(tidyr)
+
+# 엑셀 파일 불러오기
+df <- read_excel("교통사고 합계.xlsx", sheet = "Sheet1")
+
+# 자치구 결측치 채우기 (상단 자치구 이름이 생략된 경우)
+df$자치구 <- tidyr::fill(df, 1)$`자치구별(2)`
+
+# 항목별로 데이터 나누기
+df_reshaped <- df %>%
+  pivot_longer(cols = -c(자치구, 항목), names_to = "연령성별", values_to = "값") %>%
+  filter(!is.na(값)) %>%
+  mutate(값 = as.numeric(gsub("-", "0", as.character(값))))  # "-"를 0으로 처리
+
+# 각 항목별 최대값을 갖는 연령성별 추출
+결과 <- df_reshaped %>%
+  filter(항목 %in% c("발생건수 (건)", "사망자수 (명)", "부상자수 (명)")) %>%
+  group_by(자치구, 항목) %>%
+  slice_max(order_by = 값, n = 1, with_ties = FALSE) %>%
+  pivot_wider(names_from = 항목, values_from = c(연령성별, 값)) %>%
+  rename(
+    가장_사고_많은_연령성별 = `연령성별_발생건수 (건)`,
+    사고_건수 = `값_발생건수 (건)`,
+    가장_사망자_많은_연령성별 = `연령성별_사망자수 (명)`,
+    사망자_수 = `값_사망자수 (명)`,
+    가장_부상자_많은_연령성별 = `연령성별_부상자수 (명)`,
+    부상자_수 = `값_부상자수 (명)`
+  ) %>%
+  arrange(desc(사고_건수))
+
+# 결과 출력
+print(결과)
